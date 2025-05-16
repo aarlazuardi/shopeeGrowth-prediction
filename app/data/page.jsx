@@ -28,8 +28,7 @@ export default function DataPage() {
   };
 
   // Fetch data from backend on mount
-  useEffect(() => {
-    fetch("http://127.0.0.1:5000/data/")
+  useEffect(() => {    fetch(`${process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "http://127.0.0.1:5000"}/data/`)
       .then((res) => res.json())
       .then((json) => {
         // Only use year, users, growth (growth is calculated as difference from previous year)
@@ -132,8 +131,7 @@ export default function DataPage() {
     formData.append("file", file);
     setIsLoading(true);
     setMessage({ text: "", type: "" });
-    try {
-      const res = await fetch("http://127.0.0.1:5000/data/", {
+    try {      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "http://127.0.0.1:5000"}/data/`, {
         method: "POST",
         body: formData,
       });
