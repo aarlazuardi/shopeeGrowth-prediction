@@ -1,120 +1,139 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Save, Play, RotateCcw, ChevronDown, ChevronUp, ArrowRight } from "lucide-react"
-import Link from "next/link"
-import MethodCard from "@/components/MethodCard"
-import GrowthChart from "@/components/GrowthChart"
+import { useState, useEffect } from "react";
+import {
+  Save,
+  Play,
+  RotateCcw,
+  ChevronDown,
+  ChevronUp,
+  ArrowRight,
+} from "lucide-react";
+import Link from "next/link";
+import MethodCard from "@/components/MethodCard";
+import GrowthChart from "@/components/GrowthChart";
+import { fetchShopeeData } from "../../next/lib/api";
 
 export default function PredictionPage() {
-  const [historicalData] = useState([
-    { date: "2018", users: 450000, growth: 125000 },
-    { date: "2019", users: 680000, growth: 230000 },
-    { date: "2020", users: 920000, growth: 240000 },
-    { date: "2021", users: 1250000, growth: 330000 },
-    { date: "2022", users: 1680000, growth: 430000 },
-  ])
-  const [predictedData, setPredictedData] = useState([])
-  const [combinedData, setCombinedData] = useState([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [selectedMethod, setSelectedMethod] = useState("linear")
-  const [forecastYears, setForecastYears] = useState(3)
+  const [historicalData, setHistoricalData] = useState([]);
+  const [predictedData, setPredictedData] = useState([]);
+  const [combinedData, setCombinedData] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedMethod, setSelectedMethod] = useState("linear");
+  const [forecastYears, setForecastYears] = useState(3);
   const [parameters, setParameters] = useState({
     growthRate: 15,
     seasonality: "moderate",
     retentionImpact: "medium",
     marketingBoost: 0,
-  })
-  const [advancedOpen, setAdvancedOpen] = useState(false)
+  });
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [showMetrics, setShowMetrics] = useState({
     users: true,
     growth: true,
-  })
+  });
+  useEffect(() => {
+    // Fetch historical data from backend
+    fetchShopeeData
+      .getSampleData()
+      .then((data) => {
+        console.log("Received sample data:", data);
 
-  const runPrediction = () => {
-    setIsLoading(true)
+        // Map to {date, users, growth}
+        const mapped = data.map((row, idx, arr) => ({
+          date: row.year ? row.year.toString() : row.date,
+          users: row.users,
+          growth: idx === 0 ? 0 : row.users - arr[idx - 1].users,
+        }));
 
-    setTimeout(() => {
-      // This would be a real prediction algorithm in a production app
-      const lastDataPoint = historicalData[historicalData.length - 1]
-      const lastDate = lastDataPoint?.date || "2018"
-      const lastUsers = Number(lastDataPoint?.users || 100000)
-      const lastGrowth = Number(lastDataPoint?.growth || 30000)
+        console.log("Mapped data:", mapped);
+        setHistoricalData(mapped);
+        setCombinedData(mapped);
+      })
+      .catch((error) => {
+        console.error("Error fetching sample data:", error);
+        alert("Gagal mengambil data sampel: " + error.message);
+      });
+  }, []);
+  const runPrediction = async () => {
+    setIsLoading(true);
+    try {
+      // Ensure we have valid numerical data before sending to backend
+      const validData = historicalData
+        .map((row) => ({
+          year: parseInt(row.date, 10),
+          users: parseFloat(row.users),
+        }))
+        .filter((item) => !isNaN(item.year) && !isNaN(item.users));
 
-      const lastYear = Number.parseInt(lastDate)
-
-      // Generate prediction based on selected method and parameters
-      const newPredictions = []
-
-      for (let i = 1; i <= forecastYears; i++) {
-        const newYear = lastYear + i
-        const newDate = newYear.toString()
-
-        // Different growth calculations based on method
-        let growthMultiplier
-
-        if (selectedMethod === "linear") {
-          growthMultiplier = 1 + parameters.growthRate / 100
-        } else if (selectedMethod === "polynomial") {
-          growthMultiplier = Math.pow(1 + parameters.growthRate / 100, 1 + i * 0.1)
-        } else if (selectedMethod === "spline") {
-          // Add seasonal variation
-          const seasonalFactor = 1 + Math.sin((Math.PI * i) / 3) * 0.1
-          growthMultiplier = (1 + parameters.growthRate / 100) * seasonalFactor
-        } else {
-          growthMultiplier = 1 + parameters.growthRate / 100
-        }
-
-        // Apply marketing boost if specified
-        if (parameters.marketingBoost > 0) {
-          growthMultiplier += parameters.marketingBoost / 100
-        }
-
-        const growth = Math.round(lastGrowth * Math.pow(growthMultiplier, i))
-        const users = Math.round(lastUsers + growth * i * 0.8)
-
-        newPredictions.push({
-          date: newDate,
-          users,
-          growth,
-          isPrediction: true,
-        })
+      if (validData.length < 2) {
+        alert("Perlu minimal 2 data point untuk melakukan prediksi");
+        setIsLoading(false);
+        return;
       }
 
-      setPredictedData(newPredictions)
-      setCombinedData([...historicalData, ...newPredictions])
-      setIsLoading(false)
-    }, 1200)
-  }
+      // Sort data by year to ensure consecutive data
+      validData.sort((a, b) => a.year - b.year);
+
+      const predictInput = {
+        method: selectedMethod,
+        data: validData,
+        steps: forecastYears,
+      };
+
+      console.log("Sending prediction request:", JSON.stringify(predictInput));
+      const result = await fetchShopeeData.predict(predictInput);
+
+      if (result && result.predictions) {
+        const newPredictions = result.predictions.map((row) => ({
+          date: row.year.toString(),
+          users: row.users,
+          growth: row.users - historicalData[historicalData.length - 1].users,
+          isPrediction: true,
+        }));
+        setPredictedData(newPredictions);
+        setCombinedData([...historicalData, ...newPredictions]);
+      }
+    } catch (e) {
+      console.error("Prediction error:", e);
+      alert(`Gagal menjalankan prediksi: ${e.message}`);
+    }
+    setIsLoading(false);
+  };
 
   const resetPrediction = () => {
-    setPredictedData([])
-    setCombinedData(historicalData)
-  }
+    setPredictedData([]);
+    setCombinedData(historicalData);
+  };
 
   const savePrediction = () => {
     // In a real app, this would save to a database
-    alert("Skenario prediksi berhasil disimpan!")
-  }
+    alert("Skenario prediksi berhasil disimpan!");
+  };
 
   const handleMetricChange = (metric) => {
     setShowMetrics({
       ...showMetrics,
       [metric]: !showMetrics[metric],
-    })
-  }
+    });
+  };
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold text-gray-900 mb-2">Laboratorium Prediksi</h1>
+      <h1 className="text-3xl font-bold text-gray-900 mb-2">
+        Laboratorium Prediksi
+      </h1>
       <p className="text-gray-600 mb-8">
-        Terapkan metode interpolasi numerik untuk memprediksi pertumbuhan pengguna di masa depan
+        Terapkan metode interpolasi numerik untuk memprediksi pertumbuhan
+        pengguna di masa depan
       </p>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <div className="lg:col-span-1">
           <div className="card h-full">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Metode Interpolasi</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">
+              Metode Interpolasi
+            </h2>
 
             <div className="space-y-4">
               <MethodCard
@@ -155,14 +174,20 @@ export default function PredictionPage() {
 
         <div className="lg:col-span-2">
           <div className="card">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Simulasi Skenario</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">
+              Simulasi Skenario
+            </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Periode Prediksi (Tahun)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Periode Prediksi (Tahun)
+                </label>
                 <div className="flex items-center">
                   <button
-                    onClick={() => setForecastYears(Math.max(1, forecastYears - 1))}
+                    onClick={() =>
+                      setForecastYears(Math.max(1, forecastYears - 1))
+                    }
                     className="p-2 bg-gray-100 rounded-l-md border border-gray-300"
                   >
                     <ArrowRight className="h-4 w-4 text-gray-600 rotate-180" />
@@ -176,7 +201,9 @@ export default function PredictionPage() {
                     className="w-16 text-center border-y border-gray-300 py-2"
                   />
                   <button
-                    onClick={() => setForecastYears(Math.min(10, forecastYears + 1))}
+                    onClick={() =>
+                      setForecastYears(Math.min(10, forecastYears + 1))
+                    }
                     className="p-2 bg-gray-100 rounded-r-md border border-gray-300"
                   >
                     <ArrowRight className="h-4 w-4 text-gray-600" />
@@ -185,22 +212,36 @@ export default function PredictionPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tingkat Pertumbuhan Tahunan (%)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tingkat Pertumbuhan Tahunan (%)
+                </label>
                 <input
                   type="number"
                   min="0"
                   max="100"
                   value={parameters.growthRate}
-                  onChange={(e) => setParameters({ ...parameters, growthRate: Number(e.target.value) })}
+                  onChange={(e) =>
+                    setParameters({
+                      ...parameters,
+                      growthRate: Number(e.target.value),
+                    })
+                  }
                   className="input-field"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Dampak Musiman</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Dampak Musiman
+                </label>
                 <select
                   value={parameters.seasonality}
-                  onChange={(e) => setParameters({ ...parameters, seasonality: e.target.value })}
+                  onChange={(e) =>
+                    setParameters({
+                      ...parameters,
+                      seasonality: e.target.value,
+                    })
+                  }
                   className="select-field"
                 >
                   <option value="none">Tidak Ada</option>
@@ -211,10 +252,17 @@ export default function PredictionPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Dampak Retensi</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Dampak Retensi
+                </label>
                 <select
                   value={parameters.retentionImpact}
-                  onChange={(e) => setParameters({ ...parameters, retentionImpact: e.target.value })}
+                  onChange={(e) =>
+                    setParameters({
+                      ...parameters,
+                      retentionImpact: e.target.value,
+                    })
+                  }
                   className="select-field"
                 >
                   <option value="low">Rendah</option>
@@ -229,26 +277,39 @@ export default function PredictionPage() {
                 onClick={() => setAdvancedOpen(!advancedOpen)}
                 className="flex items-center text-gray-700 hover:text-[#FF6B00] font-medium"
               >
-                {advancedOpen ? <ChevronUp className="h-4 w-4 mr-1" /> : <ChevronDown className="h-4 w-4 mr-1" />}
+                {advancedOpen ? (
+                  <ChevronUp className="h-4 w-4 mr-1" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 mr-1" />
+                )}
                 Parameter Lanjutan
               </button>
 
               {advancedOpen && (
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Peningkatan Marketing (%)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Peningkatan Marketing (%)
+                    </label>
                     <input
                       type="number"
                       min="0"
                       max="50"
                       value={parameters.marketingBoost}
-                      onChange={(e) => setParameters({ ...parameters, marketingBoost: Number(e.target.value) })}
+                      onChange={(e) =>
+                        setParameters({
+                          ...parameters,
+                          marketingBoost: Number(e.target.value),
+                        })
+                      }
                       className="input-field"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Saturasi Pasar</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Saturasi Pasar
+                    </label>
                     <select className="select-field">
                       <option>Rendah</option>
                       <option>Sedang</option>
@@ -260,7 +321,11 @@ export default function PredictionPage() {
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <button onClick={runPrediction} disabled={isLoading} className="btn-primary flex items-center">
+              <button
+                onClick={runPrediction}
+                disabled={isLoading}
+                className="btn-primary flex items-center"
+              >
                 {isLoading ? (
                   <div className="mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 ) : (
@@ -292,8 +357,16 @@ export default function PredictionPage() {
       </div>
 
       <div className="card mb-8">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Perkiraan Pertumbuhan</h2>
-
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">
+          Perkiraan Pertumbuhan
+        </h2>
+        <p className="text-gray-500 mb-2">
+          Grafik di bawah ini menampilkan proyeksi jumlah pengguna SECOP di Asia
+          Tenggara berdasarkan data historis tahun 2015–2024 dan hasil prediksi
+          hingga {combinedData[combinedData.length - 1]?.date}. Sumbu X
+          menunjukkan tahun, sedangkan sumbu Y kiri adalah total pengguna (juta)
+          dan sumbu Y kanan adalah pertambahan pengguna per tahun (juta).
+        </p>
         <div className="mb-4">
           <div className="flex flex-wrap gap-4">
             <label className="flex items-center text-gray-700">
@@ -319,7 +392,12 @@ export default function PredictionPage() {
 
         <div className="h-[400px]">
           {combinedData.length > 0 ? (
-            <GrowthChart data={combinedData} type="prediction" showLabels={true} showMetrics={showMetrics} />
+            <GrowthChart
+              data={combinedData}
+              type="prediction"
+              showLabels={true}
+              showMetrics={showMetrics}
+            />
           ) : (
             <div className="h-full flex items-center justify-center text-gray-500">
               Jalankan prediksi untuk melihat hasil perkiraan
@@ -333,19 +411,36 @@ export default function PredictionPage() {
           {[
             {
               title: "Prediksi Pengguna",
-              value: predictedData[predictedData.length - 1].users.toLocaleString(),
-              change: `+${Math.round((predictedData[predictedData.length - 1].users / historicalData[historicalData.length - 1].users - 1) * 100)}%`,
+              value:
+                predictedData[predictedData.length - 1].users.toLocaleString(),
+              change: `+${Math.round(
+                (predictedData[predictedData.length - 1].users /
+                  historicalData[historicalData.length - 1].users -
+                  1) *
+                  100
+              )}%`,
               color: "text-green-600",
             },
             {
               title: "Prediksi Pertambahan",
-              value: predictedData[predictedData.length - 1].growth.toLocaleString(),
-              change: `+${Math.round((predictedData[predictedData.length - 1].growth / historicalData[historicalData.length - 1].growth - 1) * 100)}%`,
+              value:
+                predictedData[predictedData.length - 1].growth.toLocaleString(),
+              change: `+${Math.round(
+                (predictedData[predictedData.length - 1].growth /
+                  historicalData[historicalData.length - 1].growth -
+                  1) *
+                  100
+              )}%`,
               color: "text-green-600",
             },
             {
               title: "Tingkat Pertumbuhan",
-              value: `${Math.round((predictedData[predictedData.length - 1].growth / predictedData[0].growth - 1) * 100)}%`,
+              value: `${Math.round(
+                (predictedData[predictedData.length - 1].growth /
+                  predictedData[0].growth -
+                  1) *
+                  100
+              )}%`,
               change: "",
               color: "text-green-600",
             },
@@ -355,19 +450,27 @@ export default function PredictionPage() {
                 selectedMethod === "lagrange"
                   ? "92%"
                   : selectedMethod === "spline"
-                    ? "85%"
-                    : selectedMethod === "polynomial"
-                      ? "78%"
-                      : "70%",
+                  ? "85%"
+                  : selectedMethod === "polynomial"
+                  ? "78%"
+                  : "70%",
               change: "",
               color: "text-gray-600",
             },
           ].map((stat, index) => (
             <div key={index} className="stat-card">
-              <h3 className="text-gray-500 text-sm font-medium mb-1">{stat.title}</h3>
+              <h3 className="text-gray-500 text-sm font-medium mb-1">
+                {stat.title}
+              </h3>
               <div className="flex items-end gap-2">
-                <span className="text-2xl font-bold text-gray-900">{stat.value}</span>
-                {stat.change && <span className={`text-sm font-medium ${stat.color}`}>{stat.change}</span>}
+                <span className="text-2xl font-bold text-gray-900">
+                  {stat.value}
+                </span>
+                {stat.change && (
+                  <span className={`text-sm font-medium ${stat.color}`}>
+                    {stat.change}
+                  </span>
+                )}
               </div>
             </div>
           ))}
@@ -386,5 +489,5 @@ export default function PredictionPage() {
         </Link>
       </div>
     </div>
-  )
+  );
 }

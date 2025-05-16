@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
+import { useEffect, useState } from "react";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -12,10 +12,20 @@ import {
   Tooltip,
   Legend,
   Filler,
-} from "chart.js"
-import { Line, Bar } from "react-chartjs-2"
+} from "chart.js";
+import { Line, Bar } from "react-chartjs-2";
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler)
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+);
 
 export default function GrowthChart({
   data,
@@ -26,15 +36,16 @@ export default function GrowthChart({
   const [chartData, setChartData] = useState({
     labels: [],
     datasets: [],
-  })
+  });
 
   useEffect(() => {
-    if (!data || data.length === 0) return
+    if (!data || data.length === 0) return;
 
-    const labels = data.map((item) => item.date)
+    // Ensure X axis is always year (date)
+    const labels = data.map((item) => item.date);
 
     if (type === "dual" || type === "line") {
-      const datasets = []
+      const datasets = [];
 
       if (showMetrics.users) {
         datasets.push({
@@ -47,7 +58,7 @@ export default function GrowthChart({
           pointRadius: 3,
           tension: 0.3,
           yAxisID: "y",
-        })
+        });
       }
 
       if (showMetrics.growth) {
@@ -61,15 +72,15 @@ export default function GrowthChart({
           pointRadius: 3,
           tension: 0.3,
           yAxisID: "y1",
-        })
+        });
       }
 
       setChartData({
         labels,
         datasets,
-      })
+      });
     } else if (type === "bar") {
-      const datasets = []
+      const datasets = [];
 
       if (showMetrics.users) {
         datasets.push({
@@ -77,7 +88,7 @@ export default function GrowthChart({
           data: data.map((item) => item.users),
           backgroundColor: "rgba(0, 136, 204, 0.7)",
           borderRadius: 4,
-        })
+        });
       }
 
       if (showMetrics.growth) {
@@ -86,36 +97,48 @@ export default function GrowthChart({
           data: data.map((item) => item.growth),
           backgroundColor: "rgba(255, 107, 0, 0.7)",
           borderRadius: 4,
-        })
+        });
       }
 
       setChartData({
         labels,
         datasets,
-      })
+      });
     } else if (type === "prediction") {
       // Split data into historical and prediction
-      const historicalData = data.filter((item) => !item.isPrediction)
-      const predictionData = data.filter((item) => item.isPrediction)
+      const historicalData = data.filter((item) => !item.isPrediction);
+      const predictionData = data.filter((item) => item.isPrediction);
 
       // Create datasets with a visual distinction between historical and prediction
-      const usersHistorical = historicalData.map((item) => item.users)
-      const usersPrediction = predictionData.map((item) => item.users)
+      const usersHistorical = historicalData.map((item) => item.users);
+      const usersPrediction = predictionData.map((item) => item.users);
 
-      const growthHistorical = historicalData.map((item) => item.growth)
-      const growthPrediction = predictionData.map((item) => item.growth)
+      const growthHistorical = historicalData.map((item) => item.growth);
+      const growthPrediction = predictionData.map((item) => item.growth);
 
-      // Create labels for all data points
-      const allLabels = data.map((item) => item.date)
+      // Create labels for all data points (years)
+      const allLabels = data.map((item) => item.date);
 
-      // Create empty spaces for the prediction in historical data and vice versa
-      const usersHistoricalFull = [...usersHistorical, ...Array(predictionData.length).fill(null)]
-      const usersPredictionFull = [...Array(historicalData.length).fill(null), ...usersPrediction]
+      // Ensure Y axes are not identical: users on left, growth on right
+      const usersHistoricalFull = [
+        ...usersHistorical,
+        ...Array(predictionData.length).fill(null),
+      ];
+      const usersPredictionFull = [
+        ...Array(historicalData.length).fill(null),
+        ...usersPrediction,
+      ];
 
-      const growthHistoricalFull = [...growthHistorical, ...Array(predictionData.length).fill(null)]
-      const growthPredictionFull = [...Array(historicalData.length).fill(null), ...growthPrediction]
+      const growthHistoricalFull = [
+        ...growthHistorical,
+        ...Array(predictionData.length).fill(null),
+      ];
+      const growthPredictionFull = [
+        ...Array(historicalData.length).fill(null),
+        ...growthPrediction,
+      ];
 
-      const datasets = []
+      const datasets = [];
 
       if (showMetrics.users) {
         datasets.push(
@@ -141,9 +164,9 @@ export default function GrowthChart({
             pointRadius: 3,
             tension: 0.3,
             yAxisID: "y",
-            fill: "-1",
-          },
-        )
+            fill: false,
+          }
+        );
       }
 
       if (showMetrics.growth) {
@@ -170,28 +193,31 @@ export default function GrowthChart({
             pointRadius: 3,
             tension: 0.3,
             yAxisID: "y1",
-            fill: "-1",
-          },
-        )
+            fill: false,
+          }
+        );
       }
 
       setChartData({
         labels: allLabels,
         datasets,
-      })
+      });
     } else if (type === "comparison") {
       // For method comparison chart
-      const historicalData = data.filter((item) => !item.isPrediction)
-      const predictionData = data.filter((item) => item.isPrediction)
+      const historicalData = data.filter((item) => !item.isPrediction);
+      const predictionData = data.filter((item) => item.isPrediction);
 
-      const labels = data.map((item) => item.date)
+      const labels = data.map((item) => item.date);
 
       setChartData({
         labels,
         datasets: [
           {
             label: "Data Historis",
-            data: [...historicalData.map((item) => item.growth), ...Array(predictionData.length).fill(null)],
+            data: [
+              ...historicalData.map((item) => item.growth),
+              ...Array(predictionData.length).fill(null),
+            ],
             borderColor: "#333333",
             backgroundColor: "rgba(51, 51, 51, 0.1)",
             borderWidth: 2,
@@ -201,7 +227,10 @@ export default function GrowthChart({
           },
           {
             label: "Interpolasi Linear",
-            data: [...Array(historicalData.length).fill(null), ...predictionData.map((item) => item.growth * 0.97)],
+            data: [
+              ...Array(historicalData.length).fill(null),
+              ...predictionData.map((item) => item.growth * 0.97),
+            ],
             borderColor: "#FF6B00",
             borderWidth: 2,
             borderDash: [5, 5],
@@ -211,7 +240,10 @@ export default function GrowthChart({
           },
           {
             label: "Interpolasi Polinomial",
-            data: [...Array(historicalData.length).fill(null), ...predictionData.map((item) => item.growth * 1.02)],
+            data: [
+              ...Array(historicalData.length).fill(null),
+              ...predictionData.map((item) => item.growth * 1.02),
+            ],
             borderColor: "#0088CC",
             borderWidth: 2,
             borderDash: [5, 5],
@@ -221,7 +253,10 @@ export default function GrowthChart({
           },
           {
             label: "Interpolasi Spline Kubik",
-            data: [...Array(historicalData.length).fill(null), ...predictionData.map((item) => item.growth)],
+            data: [
+              ...Array(historicalData.length).fill(null),
+              ...predictionData.map((item) => item.growth),
+            ],
             borderColor: "#22C55E",
             borderWidth: 2,
             borderDash: [5, 5],
@@ -230,9 +265,9 @@ export default function GrowthChart({
             tension: 0.3,
           },
         ],
-      })
+      });
     }
-  }, [data, type, showLabels, showMetrics])
+  }, [data, type, showLabels, showMetrics]);
 
   const options = {
     responsive: true,
@@ -318,17 +353,21 @@ export default function GrowthChart({
       duration: 1000,
       easing: "easeOutQuart",
     },
-  }
+  };
 
   if (!showLabels) {
     options.plugins.datalabels = {
       display: false,
-    }
+    };
   }
 
   return (
     <div className="h-full w-full">
-      {type === "bar" ? <Bar data={chartData} options={options} /> : <Line data={chartData} options={options} />}
+      {type === "bar" ? (
+        <Bar data={chartData} options={options} />
+      ) : (
+        <Line data={chartData} options={options} />
+      )}
     </div>
-  )
+  );
 }
