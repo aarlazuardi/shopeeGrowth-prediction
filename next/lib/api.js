@@ -1,5 +1,6 @@
 export const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000";
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
+  "http://127.0.0.1:5000";
 
 /**
  * API utility for Shopee Growth Prediction
@@ -54,9 +55,9 @@ export const fetchShopeeData = {
   calculate: async (data) => {
     try {
       console.log(
-        `Sending calculation to ${API_BASE}/calculator with method: ${data.method}`
+        `Sending calculation to ${API_BASE}/calculate with method: ${data.method}`
       );
-      const res = await fetch(`${API_BASE}/calculator`, {
+      const res = await fetch(`${API_BASE}/calculate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
