@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { API_BASE } from "../../next/lib/api";
+import { API_BASE, fetchShopeeData } from "../../next/lib/api";
 
 // Import Chart.js dynamically to avoid SSR issues
 const ChartComponent = dynamic(
@@ -28,6 +28,10 @@ import {
   validateInputs as improvedValidateInputs,
   loadExampleData as improvedLoadExampleData,
   exportResultToCSV as improvedExportResultToCSV,
+  improvedLinearInterpolation,
+  improvedLagrangeInterpolation,
+  improvedPolynomialInterpolation,
+  improvedSplineInterpolation,
 } from "./improvedFunctions";
 
 export default function CalculatorPage() {
@@ -156,6 +160,91 @@ export default function CalculatorPage() {
     setErrorMessage(null);
   };
 
+  // Backend calculation function using the API
+  const calculateUsingBackend = async () => {
+    setIsCalculating(true);
+    setErrorMessage(null);
+
+    try {
+      // Extract data from inputs
+      const xValues = inputs.x.map(Number);
+      const yValues = inputs.y.map(Number);
+      const xToPredict = Number(inputs.xToPredict);
+
+      // Prepare data for API
+      const apiData = {
+        method: activeMethod,
+        x: xValues,
+        y: yValues,
+        xToPredict: xToPredict,
+      };
+
+      // Call the calculation API
+      const response = await fetchShopeeData.calculate(apiData);
+
+      // Set results from API response
+      setResult(response.result);
+      setSteps(response.steps || []);
+    } catch (error) {
+      console.error("Backend calculation failed:", error);
+      setErrorMessage(`Perhitungan backend gagal: ${error.message}`);
+      throw error; // Re-throw to trigger fallback
+    } finally {
+      setIsCalculating(false);
+    }
+  };
+
+  // Local calculation function as fallback
+  const calculateLocally = () => {
+    setIsCalculating(true);
+    setErrorMessage(null);
+
+    try {
+      // Extract data from inputs
+      const xValues = inputs.x.map(Number);
+      const yValues = inputs.y.map(Number);
+      const xToPredict = Number(inputs.xToPredict);
+
+      let interpolationResult;
+
+      // Call the appropriate improved function based on the selected method
+      if (activeMethod === "linear") {
+        interpolationResult = improvedLinearInterpolation(
+          xValues,
+          yValues,
+          xToPredict
+        );
+      } else if (activeMethod === "lagrange") {
+        interpolationResult = improvedLagrangeInterpolation(
+          xValues,
+          yValues,
+          xToPredict
+        );
+      } else if (activeMethod === "polynomial") {
+        interpolationResult = improvedPolynomialInterpolation(
+          xValues,
+          yValues,
+          xToPredict
+        );
+      } else if (activeMethod === "spline") {
+        interpolationResult = improvedSplineInterpolation(
+          xValues,
+          yValues,
+          xToPredict
+        );
+      }
+
+      // Set results
+      setResult(interpolationResult.interpolatedValue);
+      setSteps(interpolationResult.steps);
+    } catch (error) {
+      console.error("Local calculation failed:", error);
+      setErrorMessage(`Perhitungan gagal: ${error.message}`);
+    } finally {
+      setIsCalculating(false);
+    }
+  };
+
   // Main calculate function - uses backend or local based on user preference
   const calculate = () => {
     setErrorMessage(null);
@@ -201,6 +290,20 @@ export default function CalculatorPage() {
       setOpenFaqItem(null);
     } else {
       setOpenFaqItem(index);
+    }
+  };
+
+  // Export calculation result to CSV
+  const exportResultToCSV = () => {
+    if (result !== null) {
+      improvedExportResultToCSV({
+        method: activeMethod,
+        x: inputs.x,
+        y: inputs.y,
+        xToPredict: inputs.xToPredict,
+        result,
+        steps
+      });
     }
   };
 
